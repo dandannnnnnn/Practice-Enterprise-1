@@ -7,10 +7,9 @@
 
 
 #include <avr/io.h>
+#define F_CPU 16000000UL //16MHz kristal
 #include <util/delay.h>
 #include "UART_header.h"
-
-#define F_CPU 16000000UL //16MHz kristal
 
 void UART_init(unsigned int baud) { //Verloop communicatie
     

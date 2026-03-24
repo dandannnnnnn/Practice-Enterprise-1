@@ -45,35 +45,37 @@ extern "C" {
 #define R1_BIT 5
 #define R1_PIN PINF
     
-#define R2_DDR DDR_F //poort F
+#define R2_DDR DDRF //poort F
 #define R2_PORT portF
 #define R2_BIT 4    
 #define R2_PIN PINF
     
-#define R3_DDR DDR_F //poort F
+#define R3_DDR DDRF //poort F
 #define R3_PORT portF
 #define R3_BIT 1    
 #define R3_PIN PINF
     
-#define R4_DDR DDR_F //poort F
+#define R4_DDR DDRF //poort F
 #define R4_PORT portF
 #define R4_BIT 0   
 #define R4_PIN PINF
     
-#define R5_DDR DDR_F //poort F
+#define R5_DDR DDRF //poort F
 #define R5_PORT portF
 #define R5_BIT 6
 #define R5_PIN PINF
     
-#define R6_DDR DDR_F //poort F
+#define R6_DDR DDRF //poort F
 #define R6_PORT portF
 #define R6_BIT 7
 #define R6_PIN PINF
     
-#define R7_DDR DDR_C //poort C
+#define R7_DDR DDRC //poort C
 #define R7_PORT portC
 #define R7_BIT 7
 #define R7_PIN PINF
+//==========================================
+//==========================================
     
 //Poorten definiëren COLS
 #define C1_BIT 7
