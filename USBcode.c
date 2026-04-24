@@ -10,7 +10,7 @@
 #include "USB_header.h"
 #include <stdint.h>
 
-const uint8_t device_desc[] = {
+const uint8_t device_descriptor[] = {
     18,          // Lengte van deze descriptor
     1,           // Type: Device Descriptor
     0x00, 0x02,  // USB Versie 2.00 (Little Endian)
@@ -24,21 +24,20 @@ const uint8_t device_desc[] = {
 };
 
 void setupPLL(void) {
-    // Voor 16MHz kristal: PINDIV moet 1 zijn (input / 2 = 8MHz voor PLL)
+    // Voor 16MHz kristal: PINDIV '1' zijn (input / 2 = 8MHz voor PLL)
     PLLCSR = (1 << PINDIV); 
     PLLCSR |= (1 << PLLE);               // Enable PLL
     while (!(PLLCSR & (1 << PLOCK)));    // Wacht op lock
 }
 
 void initUSB(void) {
-    // USBCON is niet in je header, maar zit in avr/io.h
-    USBCON |= (1 << USBE);     // Enable USB controller
+    USBCON |= (1 << USBE);   //usb controller enable
     USBCON &= ~(1 << FRZCLK);  // Unfreeze clock
     
     setupPLL();
     
     // Attach device
-    UDCON &= ~(1 << DETACH);   // Trek DP/DM lijnen hoog zodat PC de verbinding ziet
+    UDCON &= ~(1 << DETACH);   // hoog zodat zichtbaar voor pc
 }
 
 void setupControlEndpoint(void) {
@@ -49,9 +48,9 @@ void setupControlEndpoint(void) {
 }
 
 void usb_task(void) {
-    UENUM = 0; // Altijd naar EP0 kijken voor configuratie
+    UENUM = 0; 
     
-    if (UEINTX & (1 << RXSTPE)) { // Hebben we een Setup Packet ontvangen?
+    if (UEINTX & (1 << RXSTPE)) {
         uint8_t bmRequestType = UEDATX;
         uint8_t bRequest      = UEDATX;
         uint16_t wValue       = UEDATX;
@@ -63,21 +62,19 @@ void usb_task(void) {
 
         UEINTX &= ~(1 << RXSTPE); // Clear interrupt vlag
 
-        // 1. GET_DESCRIPTOR request
         if (bRequest == 0x06) {
             uint8_t descriptor_type = (wValue >> 8);
             if (descriptor_type == 0x01) { // Device Descriptor
+                while (!(UEINTX & (1 << TXINE)));
                 for (uint8_t i = 0; i < sizeof(device_descriptor); i++) {
-                    while (!(UEINTX & (1 << TXINE))); // Wacht tot buffer klaar is
                     UEDATX = device_descriptor[i];
                 }
-                UEINTX &= ~(1 << TXINE); // Verstuur bank
+                UEINTX &= ~(1 << TXINE); // stuur bank
             }
         }
         
-        // 2. SET_ADDRESS request
         if (bRequest == 0x05) {
-            // ACK het pakket eerst
+            // ACK  pakket eerst
             UEINTX &= ~(1 << TXINE);
             while (!(UEINTX & (1 << TXINE)));
             
@@ -86,22 +83,18 @@ void usb_task(void) {
             UDADDR |= (1 << ADDEN);
         }
         
-        // 3. SET_CONFIGURATION
         if (bRequest == 0x09) {
-             UEINTX &= ~(1 << TXINE); // Bevestig configuratie
+             UEINTX &= ~(1 << TXINE); // Bevestig config
         }
     }
 }
 
 int main(void) {
-    // Uitschakelen Watchdog (veiligheid)
+    // watchdog uit
     MCUSR &= ~(1 << WDRF);
     
     initUSB();
     setupControlEndpoint();
-    
-    // Globale interrupts aan indien bij gebruik
-    // sei(); 
 
     while (1) {
         usb_task();
