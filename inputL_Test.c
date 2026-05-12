@@ -1,6 +1,6 @@
 /*
  * File:   inputL_Test.c
- * Author: Danie
+ * Author: Danielle
  *
  * Created on April 24, 2026, 11:27 AM
  */
@@ -11,7 +11,7 @@
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <string.h>
-#include "inputDetect_header_L.h"
+/*#include "inputDetect_header_L.h"*/
 
 #define F_CPU 16000000UL //16MHz xtal
 #define ROWS 7
@@ -62,31 +62,157 @@ void delayMs(uint16_t ms) {
     while (ms--) delayUs(1000);
 }
 
-void setupPLL(void) {
+
+/*---------------------------------------------------
+ PLL setup
+
+ * PLLCSR = PLL control register
+ * 
+ * PLLUSB = 0 vr 48 MHz (nodig vr usb communicatie)
+ * PLLE = PLL enable 
+ * PINDIV = 1 vr 16MHz clock
+ * PLOCK = locked ingestelde frequentie
+ */
+void startupPLL(void) {
     PLLCSR = (1 << PINDIV) | (1 << PLLE);
-    while (!(PLLCSR & (1 << PLOCK)));
+    while (!(PLLCSR & (1 << PLOCK))); //duurt paar ms voor PLOCK aan staat
 }
 
-void initUSB(void) {
-    USBCON |= (1 << USBE);
-    USBCON &= ~(1 << FRZCLK);
-    setupPLL();
-    UDCON &= ~(1 << DETACH);
+void shutdownPLL(void) {
+    PLLCSR = (0 << PINDIV) | (0 << PLLE);
+    while ((PLLCSR & (0 << PLOCK)));
 }
+/*---------------------------------------------------*/
+
+/*--------------------------------------------------------------
+ USB SETUP
+ * bladzijde 260
+ * 
+ * USBCON = USB configuratie regiser
+ * 
+ * UVREGE = USB pad Regulator --> moet aan vr usb communicatie
+ * 
+ * USBE = Set to enable the USB controller. Clear to disable and reset the USB controller, 
+ * to disable the USB transceiver and to disable the USB controller clock inputs.
+ * 
+ * FRZCLK = zet interne usb clock uit
+ * OTGPADE = VBUS PAD aanzette == vbus detectie
+ * VBUS flag = geeft value van vbus terug
+ * DETACH = deconnecteerd fysiek usb device    
+ * 
+ * UDCON LSM = pullup op D+ (high speed 0) pullup op D- (lowspeed 1)
+ * 
+ * 
+ * Power On the USB interface
+? Power-On USB pads regulator
+? Configure PLL interface
+? Enable PLL
+? Check PLL lock
+? Enable USB interface
+? Configure USB interface (USB speed, Endpoints configuration...)
+? Wait for USB VBUS information connection
+? Attach USB device
+ */
+
+void startupUSB(void) {
+    USBCON |= (1 << UVREGE); 
+    UDCON |= (0 << DETACH);
+    
+    startupPLL();
+    
+    USBCON |= (1 << USBE);
+    USBCON |= (0 << FRZCLK);
+    
+    
+    UDCON |= (1 << LSM);
+}
+
+
+void shutdownUSB(void) {
+    
+    UDCON |= (1 << DETACH);
+    
+    USBCON |= (0 << USBE);
+   //USBCON |= (1 << FRZCLK);
+    
+    shutdownPLL();
+    
+   
+    USBCON |= (0 << UVREGE); 
+}
+
+
+/*------------------------------------------------------------*/
+
+
+/*-------------------------------------------------------------
+ * endpoint setup
+ * 
+ * endpoint = a data buffer on a USB peripheral device that acts as the 
+ * final source or destination for data transferred from or to the host computer
+ * 
+ * IN endpoint = atmega --> pc
+ * OUT endpoint = pc --> atmega
+ * 
+ * type endpoints
+ * bulk overzetten grote hoeveelheden data bv file
+ * interupt: 
+ * isochronous
+ * control
+ * 
+ * 
+ * UENUM 2:0= bepaald welke endpoint er gaat gebruikt worden (111b mag niet)
+ * 
+ * UECONX = STALL shi, data toggle reset, endpoint enable 
+ * STALLRQ 5: stall request handshake = STALL answer van host aanvragen
+ * STALLRQC 4: stall request clear; 1 STALL handshake uit
+ * RSTDT 3: cleared automatisch data toggle 
+ * EPEN 0: zet endpoint aan adhv instellingen
+ * 
+ * 
+ * UECFG0X
+ * EPTYPE 7:6 = 00b control 10b bulk, 01b isochronous, 11b interrupt
+ * EPDIR 0 = 1 vr IN endpoint 0 vr OUT endpoint
+ * 
+ * UECFG1X
+ * EPSIZE 6:4 = size van endpoint
+ * 000b = 8 bytes        100b = 128 bytes
+ * 001b = 16 bytes       101b = 256 bytes
+ * 010b = 32 bytes       110b = 512 bytes
+ * 011b = 64 bytes       111b = restricted
+ * 
+ * EPBK 3:2 = grootte van bank (keuze adhv endpoint size)
+ * 00b = 1 bank
+ * 01b = 2 banks
+ * 
+ * ALLOC 1 = allocate endpoint mem
+ *  
+ */
 
 void setupControlEndpoint(void) {
+    //endpoint 0
     UENUM = 0;
-    UECONX |= (1 << EPEN);
-    UECFG0X = 0;
-    UECFG1X = (1 << EPSIZE1) | (1 << EPSIZE0) | (1 << ALLOC);
+    //interupt mode aanzetten 
+    UECFG0X |= (1 << EPTYPE0);
+    UECFG0X |= (1 << EPTYPE1);
+    
+    //endpoint instellen op IN
+    UECFG0X |= (1 << EPDIR);
+    
+    //endpoint grootte = 8bytes
+    UECFG1X = (0 << EPSIZE2) | (0 << EPSIZE1) | (0 << EPSIZE0);
+    UECFG1X = (0 << EPBK1) | (0 << EPBK0);
+    UECFG1X =(1 << ALLOC);
 }
-
+ 
 void setupEndpoint1(void) {
     UENUM = 1;
     UECONX |= (1 << EPEN);
     UECFG0X = (1 << EPTYPE1) | (1 << EPTYPE0);
     UECFG1X = (1 << EPSIZE0) | (1 << ALLOC);
 }
+
+/*----------------------------------------------------------*/
 
 void sendUSBReport(void) {
     UENUM = 1;
