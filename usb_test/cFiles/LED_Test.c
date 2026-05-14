@@ -5,7 +5,6 @@
  */
 
 #include <avr/io.h>
-#include "USB_header_1.h"
 #include <stdint.h>
 
 void manual_delay(volatile uint32_t loops) {
