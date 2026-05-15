@@ -62,7 +62,7 @@
  * 
  * ---------------------------------------------------------------------------------------------------
  * 
- *  UDINT
+ *  c
  * 
  * WAKEUPI 4: USB - controller re-activated (niet upstream resume) triggered intr indien WAKEUPE 
  *            --> software clear + USB clock input aan
@@ -85,7 +85,7 @@
  * INTERUPT ENABLE FLAGS
  * ****************************************************************************
  * 
- * UEIENx (endpoint interrupt)
+ * UEIENX (endpoint interrupt)
  * 
  * FLERRE   7: overflow/underflow interrupt
  * NAKINE   6: NAKINI interrupt
@@ -105,87 +105,7 @@
  * 
  * -----------------------------------------------------------------------------
  * 
- * 
- *******************************************************************************
- * READ/WRITE REGS
- *******************************************************************************
- -----------------------------------------------------------------------------
- * 
- * UEDATx 7:0 = byte vr read/write nr endpoint FIFO
- * 
- * -----------------------------------------------------------------------------
- * 
- * UADDR
- * ADDEN  7: set vr activeren UADD (usb address)
- *         --> hardware clear
- * UADD 6:0: software load vr configureren address
- * 
- * -----------------------------------------------------------------------------
- * 
- * UENUM
- * EPNUM 2:0: bepaald welke endpoint CPU accessed. 
- * 
- *********************************************************************************
- USB SETUP
- * *******************************************************************************
- * 
- * bladzijde 260
- * 
- * USBCON = USB configuratie regiser
- * 
- * UVREGE = USB pad Regulator --> moet aan vr usb communicatie
- * 
- * USBE = Set to enable the USB controller. Clear to disable and reset the USB controller, 
- * to disable the USB transceiver and to disable the USB controller clock inputs.
- * 
- * FRZCLK = zet interne usb clock uit
- * OTGPADE = VBUS PAD aanzette == vbus detectie
- * VBUS flag = geeft value van vbus terug
- * DETACH = deconnecteerd fysiek usb device    
- * 
- * UDCON LSM = pullup op D+ (high speed 0) pullup op D- (lowspeed 1)
- * 
- * 
- * Power On the USB interface
-? Power-On USB pads regulator
-? Configure PLL interface
-? Enable PLL
-? Check PLL lock
-? Enable USB interface
-? Configure USB interface (USB speed, Endpoints configuration...)
-? Wait for USB VBUS information connection
-? Attach USB device
  */
-
-void startupUSB(void) {
-    
-    USBCON = 0;
-    UDCON = 0;
-   
-    USBCON |= (1 << UVREGE) | (1 << USBE)| (1 << FRZCLK);
-    
-    
-    startupPLL();
-    
-    UDCON |= (1 << LSM);
-    
-    USBCON &= ~(1 << FRZCLK);
-    UDCON &= ~(1 << DETACH);
-}
-
-
-void shutdownUSB(void) {
-    
-    UDCON |= (1 << DETACH);
-    
-    USBCON &= ~(1 << USBE);
-   //USBCON &= (1 << FRZCLK);
-    
-    shutdownPLL();
-    
-   
-    USBCON &= ~(1 << UVREGE); 
-}
 
 /******************************************************************************
  * USB endpoint interrupt setup
@@ -226,6 +146,102 @@ void enableEndpointInterrupts(void)
     
     sei(); //general interrupt aanzetten. 
 }
+
+/*
+ *******************************************************************************
+ * READ/WRITE REGS
+ *******************************************************************************
+ -----------------------------------------------------------------------------
+ * 
+ * UEDATx 7:0 = byte vr read/write nr endpoint FIFO
+ * 
+ * -----------------------------------------------------------------------------
+ * 
+ * UADDR
+ * ADDEN  7: set vr activeren UADD (usb address)
+ *         --> hardware clear
+ * UADD 6:0: software load vr configureren address
+ * 
+ * -----------------------------------------------------------------------------
+ * 
+ * UENUM
+ * EPNUM 2:0: bepaald welke endpoint CPU accessed. 
+ * 
+ * -----------------------------------------------------------------------------
+ * 
+ * UEINT 
+ * EPINT 6:0: welke bit = welke endpoint active
+ *********************************************************************************
+ USB SETUP
+ * *******************************************************************************
+ * 
+ * bladzijde 260
+ * 
+ * USBCON = USB configuratie regiser
+ * 
+ * USBE = Set to enable the USB controller. Clear to disable and reset the USB controller, 
+ * to disable the USB transceiver and to disable the USB controller clock inputs.
+ * 
+ * FRZCLK = zet interne usb clock uit
+ * OTGPADE = VBUS PAD aanzette == vbus detectie
+ * VBUS flag = geeft value van vbus terug
+ * DETACH = deconnecteerd fysiek usb device    
+ * 
+ * UDCON LSM = pullup op D+ (high speed 0) pullup op D- (lowspeed 1)
+ * ---------------------------------------------------------------------------
+ * UHWCON
+ * 
+ * UVREGE = USB pad Regulator --> moet aan vr usb communicatie
+ * 
+ * 
+ * Power On the USB interface
+ *  Power-On USB pads regulator
+ *  Configure PLL interface
+ *  Enable PLL
+ *  Check PLL lock
+ *  Enable USB interface 
+ * Configure USB interface (USB speed, Endpoints configuration...)
+ *  Wait for USB VBUS information connection
+ *  Attach USB device
+ */
+
+void startupUSB(void) {
+    
+    USBCON = 0;
+    UDCON = 0;
+    UHWCON = 0;
+   
+    USBCON = (1 << USBE) | (1 << OTGPADE) | (1 << FRZCLK);
+    UHWCON = (1 << UVREGE);
+    
+    startupPLL();
+    
+    UDCON |= (1 << LSM);
+    
+    USBCON &= ~(1 << FRZCLK);
+    UDCON &= ~(1 << DETACH);
+}
+
+/*
+ * Power Off the USB interface
+ *  Detach USB interface
+ * Disable USB interface
+ *  Disable PLL
+ *  Disable USB pad regulator
+ */
+void shutdownUSB(void) {
+    
+    UDCON |= (1 << DETACH);
+    
+    USBCON &= ~(1 << USBE) | ~(1 << OTGPADE);
+   //USBCON &= (1 << FRZCLK);
+    
+    shutdownPLL();
+    
+   
+    UHWCON &= ~(1 << UVREGE); 
+}
+
 /*
  ****************************************************************************** 
  * ENUMERATION SETPS
@@ -247,6 +263,11 @@ void enableEndpointInterrupts(void)
  * 
  */
 
+
+/******************************************************************************
+ * STRUCTS
+ ******************************************************************************  
+ */
 struct __attribute__((packed)) deviceDescriptor
 {
     uint8_t bLength;
@@ -285,4 +306,80 @@ const struct deviceDescriptor PROGMEM USBDeviceDescriptor ={
 
 
 
+struct __attribute__((packed)) setupPackage
+{
+    uint8_t bmRequestType;
+    uint8_t bRequest;
+    uint16_t wValue;
+    uint16_t wIndex;
+    uint16_t wLength;
+};
+
+
+/*
+ *******************************************************************************
+ * INTERRUPT VECTOR TYPES
+ *******************************************************************************
+ * zie blz 63 atmega datasheet
+ * zie iom32u4.h voor vector namen in C
+ * 
+ * USB_GEN_vect:USB GENERAL interrupt 
+ * USB_COM_vect:USB endpoint interrupt
+
+*******************************************************************************
+ * INTERRUPT FUNCTIONS
+ ******************************************************************************
+ */
+// 2: Host reset bus --> EORSTI
+ISR(USB_GEN_vect)
+{
+    if(UDINT & (1 << EORSTI))
+    {        
+        UDINT &= ~(1 << EORSTI);
+        setup0Endpoint();
+    }
+}
+
+/* 
+ * wValue 0x01 = device descriptor
+ * GET_DESCRIPTOR 0x06
+ * SET_ADDRESS 0x05
+ * SET_CONFIGURATION 0x09
+*/
+
+ISR(USB_COM_vect)
+{
+    if(UEINT & (1 << EPINT0))
+    {
+        if(UEINTX & (1 << RXSTPI)) //SETUP package binnen gekomen
+        {
+            struct setupPackage packet;
+            uint8_t *ptr = (uint8_t *)&packet;
+
+            for(uint8_t i = 0; i < sizeof(struct setupPackage); i++) 
+            {
+                ptr[i] = UEDATX;
+            }
+            UEINTX &= ~(1 << RXSTPI);
+            
+            if(packet.bRequest == 0x06)
+            {
+              if((packet.wValue >> 8) == 0x01) //<< 8 om lower byte te krijgen
+              {
+                  while(!(UEINTX & (1 << TXINI)));  // wait until ready
+
+                  const uint8_t *ptr = (const uint8_t *)&USBDeviceDescriptor;
+                  for(uint8_t i = 0; i < sizeof(struct deviceDescriptor); i++)
+                  {
+                      UEDATX = pgm_read_byte(&ptr[i]);
+                  }
+
+                  UEINTX &= ~(1 << TXINI);          // trigger send
+                  while(!(UEINTX & (1 << RXOUTI)));
+                  UEINTX &= ~(1 << RXOUTI);
+              }
+            }
+        }
+    }
+}
 
