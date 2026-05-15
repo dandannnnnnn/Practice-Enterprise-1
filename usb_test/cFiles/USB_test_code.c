@@ -287,6 +287,64 @@ struct __attribute__((packed)) deviceDescriptor
 };
 
 
+struct __attribute__((packed)) setupPackage
+{
+    uint8_t bmRequestType;
+    uint8_t bRequest;
+    uint16_t wValue;
+    uint16_t wIndex;
+    uint16_t wLength;
+};
+//zie table 9.10 blz 265 usb datasheet
+struct __attribute__((packed)) configurationDescriptor
+{
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint16_t wTotalLength;
+    uint8_t bNumInterfaces;
+    uint8_t bConfigurationValue;
+    uint8_t iConfiguration;
+    uint8_t bmAttributes;
+    uint8_t bMaxPower;
+};
+
+//zie table 9.12 blz 269 usb datasheet
+struct __attribute__((packed)) interfaceDescriptor
+{
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bInterfaceNumber;
+    uint8_t bAlternateSetting;
+    uint8_t bNumEndpoints;
+    uint8_t bInterfaceClass;
+    uint8_t bInterfaceSubClass;
+    uint8_t bInterfaceProtocol;
+    uint8_t iINterface;
+};
+
+//zie table 9.13 blz 271 usb datasheet
+struct __attribute__((packed)) endpointDescriptor
+{
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bEndpointAdddress;
+    uint8_t bmAttributes;
+    uint16_t wMaxPacketSize;
+    uint8_t bInterval;
+};
+
+struct __attribute__((packed)) configurationPackage
+{
+    struct configurationDescriptor config;
+    struct interfaceDescriptor interface;
+    struct endpointDescriptor endpointIN;
+    struct endpointDescriptor endpointOUT;
+};
+
+/****************************************************************************
+ * FILLED IN STRUCTS
+ ****************************************************************************
+ */
 const struct deviceDescriptor PROGMEM USBDeviceDescriptor ={
     .bLength = sizeof(struct deviceDescriptor),
     .bDescriptorType = 0x01,
@@ -303,16 +361,60 @@ const struct deviceDescriptor PROGMEM USBDeviceDescriptor ={
     .iSerialNumber = 0,
     .bNumConfigurations = 1
 };
+/*
+ * descriptor types
+ * 0x01: device descriptor
+ * 0x02: configuration descriptor
+ * 0x03: string descriptor
+ * 0x04: interface descriptor
+ * 0x05: endpoint descriptor
+ */
 
-
-
-struct __attribute__((packed)) setupPackage
-{
-    uint8_t bmRequestType;
-    uint8_t bRequest;
-    uint16_t wValue;
-    uint16_t wIndex;
-    uint16_t wLength;
+const struct configurationPackage PROGMEM USBConfigurationPackage = {
+    .config = {
+        .bLength = sizeof(struct configurationDescriptor),
+        .bDescriptorType = 0x02,
+        .wTotalLength = sizeof(struct configurationPackage),
+        .bNumInterfaces = 1,
+        .bConfigurationValue = 1,
+        .iConfiguration = 0,
+        .bmAttributes = 0x80,
+        .bMaxPower = 50,
+    },
+    //zie https://www.usb.org/sites/default/files/hid1_11.pdf voor instelling
+    //interface en subinterface sectie 4.2
+    .interface = {
+        .bLength = sizeof(struct interfaceDescriptor),
+        .bDescriptorType = 0x04,
+        .bInterfaceNumber = 0,
+        .bAlternateSetting = 0,
+        .bNumEndpoints = 2, //aantal endpoints buiten control (standaard)
+        .bInterfaceClass = 0x01, //
+        .bInterfaceSubClass = 0x01,
+        .bInterfaceProtocol = 0,
+        .iINterface = 0,
+    },
+    /*
+     * endpoint address:
+     * 7: 1 = IN 0 = out
+     * 3:0 = endpoint zelf
+     */
+    .endpointIN = {
+        .bLength = sizeof(struct endpointDescriptor),
+        .bDescriptorType = 0x05,
+        .bEndpointAdddress = 0x81,// 10000001 
+        .bmAttributes = 0x02,
+        .wMaxPacketSize = 8,
+        .bInterval = 0,
+    },
+    .endpointOUT = {
+        .bLength = sizeof(struct endpointDescriptor),
+        .bDescriptorType = 0x05, 
+        .bEndpointAdddress = 0x02, //00000010
+        .bmAttributes = 0x02,
+        .wMaxPacketSize = 8,
+        .bInterval = 0,
+    }
 };
 
 
@@ -341,9 +443,10 @@ ISR(USB_GEN_vect)
 }
 
 /* 
- * wValue 0x01 = device descriptor
- * GET_DESCRIPTOR 0x06
+ * wValue 0x01 = device descriptor 
+ * wValue 0x02 = configuration descriptor
  * SET_ADDRESS 0x05
+ * GET_DESCRIPTOR 0x06
  * SET_CONFIGURATION 0x09
 */
 
@@ -364,6 +467,7 @@ ISR(USB_COM_vect)
             
             if(packet.bRequest == 0x06)
             {
+                //device descriptor versturen
               if((packet.wValue >> 8) == 0x01) //<< 8 om lower byte te krijgen
               {
                   while(!(UEINTX & (1 << TXINI)));  // wait until ready
@@ -371,15 +475,30 @@ ISR(USB_COM_vect)
                   const uint8_t *ptr = (const uint8_t *)&USBDeviceDescriptor;
                   for(uint8_t i = 0; i < sizeof(struct deviceDescriptor); i++)
                   {
+                      UEDATX = pgm_read_byte(&ptr[i]); //function om te lezen uit flash
+                  }
+                  UEINTX &= ~(1 << TXINI);          // trigger send
+                  while(!(UEINTX & (1 << RXOUTI))); 
+                  UEINTX &= ~(1 << RXOUTI);
+              }
+              
+              //configuration descriptor versturen 
+              else  if((packet.wValue >> 8) == 0x02) //<< 8 om lower byte te krijgen
+              {
+                  while(!(UEINTX & (1 << TXINI)));
+                  
+                  const uint8_t *ptr = (const uint8_t *)&USBConfigurationPackage;
+                  
+                  for(uint8_t i = 0; i < sizeof(struct configurationPackage); i++)
+                  {
                       UEDATX = pgm_read_byte(&ptr[i]);
                   }
-
-                  UEINTX &= ~(1 << TXINI);          // trigger send
+                  UEINTX &= ~(1 << TXINI);
                   while(!(UEINTX & (1 << RXOUTI)));
                   UEINTX &= ~(1 << RXOUTI);
               }
             }
-        }
+        } 
     }
 }
 
