@@ -327,7 +327,7 @@ struct __attribute__((packed)) endpointDescriptor
 {
     uint8_t bLength;
     uint8_t bDescriptorType;
-    uint8_t bEndpointAdddress;
+    uint8_t bEndpointAddress;
     uint8_t bmAttributes;
     uint16_t wMaxPacketSize;
     uint8_t bInterval;
@@ -389,9 +389,9 @@ const struct configurationPackage PROGMEM USBConfigurationPackage = {
         .bInterfaceNumber = 0,
         .bAlternateSetting = 0,
         .bNumEndpoints = 2, //aantal endpoints buiten control (standaard)
-        .bInterfaceClass = 0x01, //
+        .bInterfaceClass = 0x03, //
         .bInterfaceSubClass = 0x01,
-        .bInterfaceProtocol = 0,
+        .bInterfaceProtocol = 0x01,
         .iINterface = 0,
     },
     /*
@@ -402,7 +402,7 @@ const struct configurationPackage PROGMEM USBConfigurationPackage = {
     .endpointIN = {
         .bLength = sizeof(struct endpointDescriptor),
         .bDescriptorType = 0x05,
-        .bEndpointAdddress = 0x81,// 10000001 
+        .bEndpointAddress = 0x81,// 10000001 
         .bmAttributes = 0x02,
         .wMaxPacketSize = 8,
         .bInterval = 0,
@@ -410,7 +410,7 @@ const struct configurationPackage PROGMEM USBConfigurationPackage = {
     .endpointOUT = {
         .bLength = sizeof(struct endpointDescriptor),
         .bDescriptorType = 0x05, 
-        .bEndpointAdddress = 0x02, //00000010
+        .bEndpointAddress = 0x02, //00000010
         .bmAttributes = 0x02,
         .wMaxPacketSize = 8,
         .bInterval = 0,
@@ -467,8 +467,8 @@ ISR(USB_COM_vect)
             
             if(packet.bRequest == 0x06)
             {
-                //device descriptor versturen
-              if((packet.wValue >> 8) == 0x01) //<< 8 om lower byte te krijgen
+                //stap 3 device descriptor versturen
+              if((packet.wValue >> 8) == 0x01) //<< 8 om higher byte te krijgen
               {
                   while(!(UEINTX & (1 << TXINI)));  // wait until ready
 
@@ -482,8 +482,8 @@ ISR(USB_COM_vect)
                   UEINTX &= ~(1 << RXOUTI);
               }
               
-              //configuration descriptor versturen 
-              else  if((packet.wValue >> 8) == 0x02) //<< 8 om lower byte te krijgen
+              // stap 4 configuration descriptor versturen 
+              else  if((packet.wValue >> 8) == 0x02) //<< 8 om higher byte te krijgen
               {
                   while(!(UEINTX & (1 << TXINI)));
                   
@@ -496,7 +496,26 @@ ISR(USB_COM_vect)
                   UEINTX &= ~(1 << TXINI);
                   while(!(UEINTX & (1 << RXOUTI)));
                   UEINTX &= ~(1 << RXOUTI);
-              }
+              }              
+            }
+            
+            //stap 5 SET ADDRESS
+            else if(packet.bRequest == 0x05)
+            {
+                UDADDR = 0;
+                UDADDR = (packet.wValue & 0x7F); //nieuw adress zit in lower byte van wValue
+                while(!(UEINTX & (1 << TXINI)));  // wait until ready
+                UEINTX &= ~(1 << TXINI);
+                while(UEINTX & (1 << TXINI));  // wait until ready
+                UDADDR |= (1 << ADDEN);
+            }
+            
+            //stap 6 SET CONFIGURATION
+            else if(packet.bRequest == 0x09)
+            {
+                while(!(UEINTX & (1 << TXINI)));  // wait until ready
+                UEINTX &= ~(1 << TXINI);
+                while(!(UEINTX & (1 << TXINI)));  // wait until ready
             }
         } 
     }
