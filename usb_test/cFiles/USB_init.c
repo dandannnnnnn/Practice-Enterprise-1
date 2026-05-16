@@ -472,7 +472,7 @@ const struct configurationPackage PROGMEM USBConfigurationPackage = {
         .bEndpointAddress = 0x81,// 10000001 
         .bmAttributes = 0x02,
         .wMaxPacketSize = 8,
-        .bInterval = 0,
+        .bInterval = 1 0,
     },
     .endpointOUT = {
         .bLength = sizeof(struct endpointDescriptor),
@@ -616,3 +616,18 @@ ISR(USB_COM_vect)
  * ONTVANG EN STUUR FUNCTIONS
  ******************************************************************************
  */
+
+
+void sendData(uint8_t modifier, uint8_t keycode[])
+{
+    UENUM = 1;
+    while(!(UEINTX & (1 << TXINI)));
+    UEDATX = modifier;
+    UEDATX = 0;
+    for(uint8_t i = 0; i<6; i++)
+    {
+        UEDATX = keycode[i];
+    }
+    UEINTX &= ~(1 << TXINI);
+
+}
