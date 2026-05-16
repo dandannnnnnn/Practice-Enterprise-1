@@ -19,7 +19,8 @@
  * 
  * usb 2.0 datasheet https://eater.net/downloads/usb_20.pdf
  * --> extra uitleg https://www.beyondlogic.org/usbnutshell/usb5.shtml#DeviceDescriptors
-
+ * 
+ * HID specs https://www.usb.org/sites/default/files/hid1_11.pdf 
  *******************************************************************************
  * INTERUPT STATUS FLAG REGISTERS
  *******************************************************************************
@@ -264,6 +265,47 @@ void shutdownUSB(void) {
  */
 
 
+/*******************************************************************************
+ * REPORT DESCRIPTOR ARRAY
+ *******************************************************************************
+ * 
+ * standaard report descriptor van https://forums.obdev.at/viewtopic4d0c.html?t=10780
+ */
+
+const uint8_t PROGMEM keyboardReportDescriptor[] = {
+    0x05, 0x01,  // Usage Page (Generic Desktop)
+    0x09, 0x06,  // Usage (Keyboard)
+    0xA1, 0x01,  // Collection (Application)
+    
+    // Modifier keys (Ctrl, Shift, Alt...)
+    0x05, 0x07,  // Usage Page (Key Codes)
+    0x19, 0xE0,  // Usage Minimum (224)
+    0x29, 0xE7,  // Usage Maximum (231)
+    0x15, 0x00,  // Logical Minimum (0)
+    0x25, 0x01,  // Logical Maximum (1)
+    0x75, 0x01,  // Report Size (1 bit)
+    0x95, 0x08,  // Report Count (8)
+    0x81, 0x02,  // Input (Data, Variable, Absolute)
+    
+    // Reserved byte
+    0x95, 0x01,  // Report Count (1)
+    0x75, 0x08,  // Report Size (8)
+    0x81, 0x01,  // Input (Constant)
+    
+    // Keycodes (6 keys)
+    0x95, 0x06,  // Report Count (6)
+    0x75, 0x08,  // Report Size (8)
+    0x15, 0x00,  // Logical Minimum (0)
+    0x25, 0x65,  // Logical Maximum (101)
+    0x05, 0x07,  // Usage Page (Key Codes)
+    0x19, 0x00,  // Usage Minimum (0)
+    0x29, 0x65,  // Usage Maximum (101)
+    0x81, 0x00,  // Input (Data, Array)
+    
+    0xC0         // End Collection
+};
+
+
 /******************************************************************************
  * STRUCTS
  ******************************************************************************  
@@ -308,6 +350,17 @@ struct __attribute__((packed)) configurationDescriptor
     uint8_t bMaxPower;
 };
 
+struct __attribute__((packed)) HIDDescriptor
+{
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint16_t bcdHID;
+    uint8_t bCountryCode;
+    uint8_t bNumDescriptors;
+    uint8_t bDescriptorType1;
+    uint16_t wDescriptorLength;
+};
+
 //zie table 9.12 blz 269 usb datasheet
 struct __attribute__((packed)) interfaceDescriptor
 {
@@ -337,6 +390,7 @@ struct __attribute__((packed)) configurationPackage
 {
     struct configurationDescriptor config;
     struct interfaceDescriptor interface;
+    struct HIDDescriptor HID;
     struct endpointDescriptor endpointIN;
     struct endpointDescriptor endpointOUT;
 };
@@ -348,7 +402,7 @@ struct __attribute__((packed)) configurationPackage
 const struct deviceDescriptor PROGMEM USBDeviceDescriptor ={
     .bLength = sizeof(struct deviceDescriptor),
     .bDescriptorType = 0x01,
-    .bcdUSB = 0x0200,
+    .bcdUSB = 0x0200, //version van usb 
     .bDeviceClass = 0,
     .bDeviceSubClass = 0,
     .bDeviceProtocol = 0,
@@ -368,6 +422,8 @@ const struct deviceDescriptor PROGMEM USBDeviceDescriptor ={
  * 0x03: string descriptor
  * 0x04: interface descriptor
  * 0x05: endpoint descriptor
+ * 0x21 HID descriptor
+ * 0x22 report descriptor
  */
 
 const struct configurationPackage PROGMEM USBConfigurationPackage = {
@@ -393,6 +449,17 @@ const struct configurationPackage PROGMEM USBConfigurationPackage = {
         .bInterfaceSubClass = 0x01,
         .bInterfaceProtocol = 0x01,
         .iINterface = 0,
+    },
+    
+    .HID = 
+    {
+      .bLength = sizeof(struct HIDDescriptor),
+      .bDescriptorType = 0x21,
+      .bcdHID = 0x0111, //current version van HID
+      .bNumDescriptors = 1,
+      .bCountryCode = 0x00,
+      .bDescriptorType1 = 0x22,
+      .wDescriptorLength = sizeof(keyboardReportDescriptor),
     },
     /*
      * endpoint address:
@@ -496,7 +563,19 @@ ISR(USB_COM_vect)
                   UEINTX &= ~(1 << TXINI);
                   while(!(UEINTX & (1 << RXOUTI)));
                   UEINTX &= ~(1 << RXOUTI);
-              }              
+              } 
+              else if((packet.wValue >> 8) == 0x22) //stap 4.5 report descriptor
+              {
+                while(!(UEINTX & (1 << TXINI)));
+                                    
+                for(uint8_t i = 0; i < sizeof(keyboardReportDescriptor); i++)
+                {
+                    UEDATX = pgm_read_byte(&keyboardReportDescriptor[i]);
+                }
+                UEINTX &= ~(1 << TXINI);
+                while(!(UEINTX & (1 << RXOUTI)));
+                UEINTX &= ~(1 << RXOUTI); 
+              }
             }
             
             //stap 5 SET ADDRESS
@@ -506,8 +585,15 @@ ISR(USB_COM_vect)
                 UDADDR = (packet.wValue & 0x7F); //nieuw adress zit in lower byte van wValue
                 while(!(UEINTX & (1 << TXINI)));  // wait until ready
                 UEINTX &= ~(1 << TXINI);
-                while(UEINTX & (1 << TXINI));  // wait until ready
+                while(!(UEINTX & (1 << TXINI)));  // wait until ready
                 UDADDR |= (1 << ADDEN);
+            }
+            
+            else if(packet.bRequest == 0x0A) // SET_IDLE
+            {
+                while(!(UEINTX & (1 << TXINI)));
+                UEINTX &= ~(1 << TXINI);
+                while(!(UEINTX & (1 << TXINI)));
             }
             
             //stap 6 SET CONFIGURATION
@@ -516,8 +602,17 @@ ISR(USB_COM_vect)
                 while(!(UEINTX & (1 << TXINI)));  // wait until ready
                 UEINTX &= ~(1 << TXINI);
                 while(!(UEINTX & (1 << TXINI)));  // wait until ready
+                setupINEndpoint();
+                setupOUTEndpoint();
             }
         } 
     }
 }
 
+
+
+
+/******************************************************************************
+ * ONTVANG EN STUUR FUNCTIONS
+ ******************************************************************************
+ */
