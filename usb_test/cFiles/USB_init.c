@@ -82,6 +82,8 @@
  * RSTDT     3: cleared automatisch data toggle 
  * EPEN      0: zet endpoint aan adhv instellingen
  * 
+ * ---------------------------------------------------------------------------------------------
+ * 
  ******************************************************************************
  * INTERUPT ENABLE FLAGS
  * ****************************************************************************
@@ -125,7 +127,7 @@ void endpointINSetup(void)
     UENUM = 1;
     UEIENX = 0;
     
-    UEIENX = (1 << TXINE) | (1 << NAKINE) | (1 << STALLEDE) | (1 << FLERRE);
+    UEIENX = (1 << TXINE);
 }
 
 void endpointOUTSetup(void)
@@ -133,7 +135,7 @@ void endpointOUTSetup(void)
     UENUM = 2;
     UEIENX = 0;
     
-    UEIENX = (1 << RXOUTE) | (1 << NAKOUTE) | (1 << STALLEDE) | (1 << FLERRE);
+    UEIENX = (1 << RXOUTE);
 }
 
 void enableEndpointInterrupts(void)
@@ -174,7 +176,7 @@ void enableEndpointInterrupts(void)
  * EPINT 6:0: welke bit = welke endpoint active
  *********************************************************************************
  USB SETUP
- * *******************************************************************************
+ *********************************************************************************
  * 
  * bladzijde 260
  * 
@@ -221,6 +223,8 @@ void startupUSB(void) {
     
     USBCON &= ~(1 << FRZCLK);
     UDCON &= ~(1 << DETACH);
+    
+    setup0Endpoint();
 }
 
 /*
@@ -472,7 +476,7 @@ const struct configurationPackage PROGMEM USBConfigurationPackage = {
         .bEndpointAddress = 0x81,// 10000001 
         .bmAttributes = 0x02,
         .wMaxPacketSize = 8,
-        .bInterval = 1 0,
+        .bInterval = 10,
     },
     .endpointOUT = {
         .bLength = sizeof(struct endpointDescriptor),
@@ -606,6 +610,10 @@ ISR(USB_COM_vect)
                 setupOUTEndpoint();
             }
         } 
+    }
+    if(UEINT & (1 << EPINT1))
+    {
+        
     }
 }
 
