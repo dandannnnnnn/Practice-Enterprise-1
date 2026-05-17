@@ -145,6 +145,8 @@ void setup0Endpoint(void)
     //UECFG0X = (0b00 << EPTYPE0) | (0 << EPDIR);
     UECFG1X = (0b011 << EPSIZE0) | (0b00 << EPBK0) | (1 << ALLOC);
     UECONX = (1 << EPEN);
+    
+    UEIENX = (1 << RXSTPE);
 
 
 }
@@ -157,7 +159,7 @@ void setupINEndpoint(void) {
     UECONX = 0;
     
     UECFG0X = (0b11 << EPTYPE0) | (1 << EPDIR);
-    UECFG1X = (0b000 << EPSIZE0) | (0b00 << EPBK0) | (1 << ALLOC);
+    UECFG1X = (0b011 << EPSIZE0) | (0b00 << EPBK0) | (1 << ALLOC);
     UECONX = (1 << EPEN);
 }
  
@@ -170,7 +172,7 @@ void setupOUTEndpoint(void) {
 
     
     UECFG0X = (0b11 << EPTYPE0) | (0 << EPDIR);
-    UECFG1X = (0b000 << EPSIZE0) |(0b00 << EPBK0) | (1 << ALLOC);
+    UECFG1X = (0b011 << EPSIZE0) |(0b00 << EPBK0) | (1 << ALLOC);
     UECONX = (1 << EPEN);
 }
 
