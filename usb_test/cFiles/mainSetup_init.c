@@ -10,8 +10,7 @@
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include <string.h>
-
-#include "init_headerfile.h"
+#include "../headerFiles/init_headerfile.h"
   /*-----------------------------------------------------------------------------------------------
    * timers/counters
    * pp 92
@@ -90,70 +89,6 @@ void shutdownPLL(void) {
 }
 /*---------------------------------------------------*/
 
-/*--------------------------------------------------------------
- USB SETUP
- * bladzijde 260
- * 
- * USBCON = USB configuratie regiser
- * 
- * UVREGE = USB pad Regulator --> moet aan vr usb communicatie
- * 
- * USBE = Set to enable the USB controller. Clear to disable and reset the USB controller, 
- * to disable the USB transceiver and to disable the USB controller clock inputs.
- * 
- * FRZCLK = zet interne usb clock uit
- * OTGPADE = VBUS PAD aanzette == vbus detectie
- * VBUS flag = geeft value van vbus terug
- * DETACH = deconnecteerd fysiek usb device    
- * 
- * UDCON LSM = pullup op D+ (high speed 0) pullup op D- (lowspeed 1)
- * 
- * 
- * Power On the USB interface
-? Power-On USB pads regulator
-? Configure PLL interface
-? Enable PLL
-? Check PLL lock
-? Enable USB interface
-? Configure USB interface (USB speed, Endpoints configuration...)
-? Wait for USB VBUS information connection
-? Attach USB device
- */
-
-void startupUSB(void) {
-    
-    USBCON = 0;
-    UDCON = 0;
-   
-    USBCON |= (1 << UVREGE) | (1 << USBE)| (1 << FRZCLK);
-    
-    
-    startupPLL();
-    
-    UDCON |= (1 << LSM);
-    
-    USBCON &= ~(1 << FRZCLK);
-    UDCON &= ~(1 << DETACH);
-}
-
-
-void shutdownUSB(void) {
-    
-    UDCON |= (1 << DETACH);
-    
-    USBCON &= ~(1 << USBE);
-   //USBCON &= (1 << FRZCLK);
-    
-    shutdownPLL();
-    
-   
-    USBCON &= ~(1 << UVREGE); 
-}
-
-
-/*------------------------------------------------------------*/
-
-
 /*-------------------------------------------------------------
  * endpoint setup
  * 
@@ -210,6 +145,8 @@ void setup0Endpoint(void)
     //UECFG0X = (0b00 << EPTYPE0) | (0 << EPDIR);
     UECFG1X = (0b011 << EPSIZE0) | (0b00 << EPBK0) | (1 << ALLOC);
     UECONX = (1 << EPEN);
+    
+    UEIENX = (1 << RXSTPE);
 
 
 }
@@ -222,7 +159,7 @@ void setupINEndpoint(void) {
     UECONX = 0;
     
     UECFG0X = (0b11 << EPTYPE0) | (1 << EPDIR);
-    UECFG1X = (0b000 << EPSIZE0) | (0b00 << EPBK0) | (1 << ALLOC);
+    UECFG1X = (0b011 << EPSIZE0) | (0b00 << EPBK0) | (1 << ALLOC);
     UECONX = (1 << EPEN);
 }
  
@@ -235,26 +172,10 @@ void setupOUTEndpoint(void) {
 
     
     UECFG0X = (0b11 << EPTYPE0) | (0 << EPDIR);
-    UECFG1X = (0b000 << EPSIZE0) |(0b00 << EPBK0) | (1 << ALLOC);
+    UECFG1X = (0b011 << EPSIZE0) |(0b00 << EPBK0) | (1 << ALLOC);
     UECONX = (1 << EPEN);
 }
 
 /*----------------------------------------------------------*/
 
 
-/*--------------------------------------------------------------------------------
- * delays
- * 
- * 
-void delayUs(uint16_t us) {
-    while (us--) {
-        asm volatile ("nop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\tnop\n\t");
-    }
-}
- * 
- * 
-
-void delayMs(uint16_t ms) {
-    while (ms--) delayUs(1000);
-}
- */
