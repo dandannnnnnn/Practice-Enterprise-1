@@ -44,13 +44,16 @@
 void timer1setup(void)
 {
     //reset timer1 + interupt mask
+    //exact 1ms
     TCCR1B = 0;
     TIMSK1 = 0; 
-    OCR1A = 0xFFFF; 
+    OCR1A = 249; 
     
-    TCCR1B = (1 << CS10)| (1 << WGM12);
+    TCCR1B = (0b11 << CS10)| (1 << WGM12);
     
     TIMSK1 =(1 << OCIE1A);
+    
+    sei();
 }
 
 
@@ -60,12 +63,6 @@ void timer1setup(void)
    * pwm
    * pp  100
   */
-
-
-
-
-
-
 
 /*---------------------------------------------------
  PLL setup

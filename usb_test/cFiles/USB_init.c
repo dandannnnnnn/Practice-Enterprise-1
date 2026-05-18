@@ -13,6 +13,11 @@
 #include "../headerFiles/init_headerfile.h"
 
 
+
+volatile uint8_t usbReady = 0;
+extern keyType globalReport;
+
+
 /*
  * atmega32U4 datasheet: https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7766-8-bit-AVR-ATmega16U4-32U4_Datasheet.pdf
  * adress setup usb 272
@@ -124,7 +129,7 @@ void endpoint0InterruptSetup(void)
 
 void endpointINSetup(void)
 {
-    UENUM  = 1;
+    UENUM = 1;
     UEIENX = 0;
     UEIENX = (1 << TXINE);
 }
@@ -557,7 +562,7 @@ ISR(USB_COM_vect)
                         UEDATX = pgm_read_byte(&ptr[i]);
                     }
                     UEINTX &= ~(1 << TXINI);
-                    while(!(UEINTX & (1 << RXOUTI)));
+                    while(!(UEINTX & (1 << RXOUTI))); 
                     UEINTX &= ~(1 << RXOUTI);
                 }
 
@@ -628,6 +633,7 @@ ISR(USB_COM_vect)
                 while(!(UEINTX & (1 << TXINI)));
                 setupINEndpoint();
                 setupOUTEndpoint();
+                usbReady = 1;
             }
 
             /* alles wat niet herkend wordt krijgt een STALL
@@ -640,11 +646,6 @@ ISR(USB_COM_vect)
             }
         }
     }
-
-    if(UEINT & (1 << EPINT1))
-    {
-        // IN endpoint interrupt handler - hier later keyboarddata sturen
-    }
 }
 
 
@@ -652,60 +653,16 @@ ISR(USB_COM_vect)
  * ONTVANG EN STUUR FUNCTIONS
  ******************************************************************************/
 
-void sendData(uint8_t modifier, uint8_t keycode[])
+
+void sendData(void)
 {
-    UENUM = 1;
-    while(!(UEINTX & (1 << TXINI)));
-    UEDATX = modifier;
+    UEDATX = globalReport.modKeys;
     UEDATX = 0;
     for(uint8_t i = 0; i < 6; i++)
     {
-        UEDATX = keycode[i];
+        UEDATX = globalReport.keys[i];
     }
     UEINTX &= ~(1 << TXINI);
-}
+    PORTD |= ((1 << PORTD5) | (1 << PORTD0));
 
-void sendHello(void)
-{
-    // HID keycode tabel: https://usb.org/sites/default/files/hut1_3_0.pdf blz 88
-    // modifier = 0x00 (geen shift/ctrl/alt)
-    // keycode  = 0x00 betekent geen toets ingedrukt
-    
-    // h = 0x0B
-    // e = 0x08
-    // l = 0x0F
-    // l = 0x0F
-    // o = 0x12
-
-    uint8_t keycodes[6] = {0};
-
-    // stuur 'h'
-    keycodes[0] = 0x0B;
-    sendData(0x00, keycodes);
-    keycodes[0] = 0x00;
-    sendData(0x00, keycodes);   // toets loslaten
-
-    // stuur 'e'
-    keycodes[0] = 0x08;
-    sendData(0x00, keycodes);
-    keycodes[0] = 0x00;
-    sendData(0x00, keycodes);
-
-    // stuur 'l'
-    keycodes[0] = 0x0F;
-    sendData(0x00, keycodes);
-    keycodes[0] = 0x00;
-    sendData(0x00, keycodes);
-
-    // stuur 'l'
-    keycodes[0] = 0x0F;
-    sendData(0x00, keycodes);
-    keycodes[0] = 0x00;
-    sendData(0x00, keycodes);
-
-    // stuur 'o'
-    keycodes[0] = 0x12;
-    sendData(0x00, keycodes);
-    keycodes[0] = 0x00;
-    sendData(0x00, keycodes);
 }

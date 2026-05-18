@@ -20,7 +20,14 @@ void shutdownUSB(void);
 void setupINEndpoint(void);
 void setupOUTEndpoint(void);
 void setup0Endpoint(void);
+void sendData(void);
 
+
+typedef struct {
+    uint8_t modKeys; //ctrl, alt, shift, windows button (behalve escp)
+    uint8_t reserved;
+    uint8_t keys[6]; //standaard keyboard 6-key rollover => max. 6 keys tegelijk ingedrukt worden gedetecteerd
+}keyType;
 #ifdef	__cplusplus
 }
 #endif
