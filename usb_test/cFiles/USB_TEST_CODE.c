@@ -60,6 +60,7 @@ int main() {
     if(usbReady) {
         matrixScan();
         UENUM = 1;
+            PORTD &= ~((1 << PORTD5) | (1 << PORTD0));
         if((UEINTX & (1 << TXINI)) & (memcmp(&globalReport, &prevReport, sizeof(keyType)) != 0)) {
                 sendData();
                 prevReport = globalReport;
@@ -87,8 +88,6 @@ void updateKeyType(uint8_t key, uint8_t pressedKey) {
     } else { //normale keys
         if (pressedKey) 
         {
-                PORTD |= (1 << PORTD5) | (1 << PORTD0);
-
             for (uint8_t i=0 ; i < 6; i++) {
                 if (globalReport.keys[i] == key) { //key al in lijst, er gebeurt niks
                     return;
@@ -106,7 +105,6 @@ void updateKeyType(uint8_t key, uint8_t pressedKey) {
             }
         }
     }
-    PORTD &= ~((1 << PORTD5) | (1 << PORTD0));
 }
 
 void setupCols(uint8_t col, uint8_t status) {
